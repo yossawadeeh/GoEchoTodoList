@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -34,7 +35,7 @@ func (h *DataHandler) GetAllToDoList(c echo.Context) error {
 	userId := c.Param("id")
 	todolist := []model.ToDoList{}
 
-	if err := h.DB.First(&todolist, userId).Error; err != nil {
+	if err := h.DB.Where("user_id = ?", userId).Find(&todolist).Error; err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{
 			"status":  http.StatusNotFound,
 			"message": "Not Found",
@@ -108,19 +109,20 @@ func (h *DataHandler) UpdateToDoList(c echo.Context) error {
 		})
 	}
 
-	fmt.Println("todoId", todoId)
-	fmt.Println("UserId", todo.UserId)
+	// fmt.Println("todoId", todoId)
+	// fmt.Println("UserId", todo.UserId)
 	if err := h.DB.Where("id = ? AND user_id = ?", todoId, todo.UserId).First(&todoUpdate).Error; err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{
 			"status":  http.StatusNotFound,
 			"message": "Not Found",
 		})
 	}
+	fmt.Println("todoId", todoId)
 
 	todoUpdate.ID = uint(tId)
 	todoUpdate.Discription = todo.Discription
 	todoUpdate.StatusId = todo.StatusId
-	todoUpdate.CreateDate = todo.CreateDate
+	//todoUpdate.CreateDate = todo.CreateDate
 	todoUpdate.UserId = todo.UserId
 
 	if err := h.DB.Save(&todoUpdate).Error; err != nil {
@@ -129,6 +131,8 @@ func (h *DataHandler) UpdateToDoList(c echo.Context) error {
 			"message": "Internal Server Error",
 		})
 	}
+
+	todo.ID = todoUpdate.ID
 
 	return c.JSON(http.StatusOK, todo)
 }
@@ -156,11 +160,30 @@ func (h *DataHandler) DeleteToDoList(c echo.Context) error {
 		})
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	//return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusOK, todoId)
+}
+
+func (h *DataHandler) GetAllStatus(c echo.Context) error {
+	statuses := []model.Status{}
+
+	if err := h.DB.Find(&statuses).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{
+			"status":  http.StatusNotFound,
+			"message": "Not Found",
+		})
+	}
+
+	return c.JSON(http.StatusOK, statuses)
 }
 
 func main() {
 	e := echo.New() // เพื่อสร้าง instance ของ Echo ขึ้นมาใช้งาน
+
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+	}))
 
 	h := DataHandler{}
 	h.Initialize()
@@ -171,6 +194,8 @@ func main() {
 	e.POST("/todolist", h.CreateToDoList)
 	e.PUT("/todolist/:todoId", h.UpdateToDoList)
 	e.DELETE("/todolist/:id/:todoId", h.DeleteToDoList)
+
+	e.GET("/status", h.GetAllStatus)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
